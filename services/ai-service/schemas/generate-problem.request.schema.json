@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateProblemInternalRequest",
+  "type": "object",
+  "required": ["tags", "difficulty", "time_limit_ms", "memory_limit_mb"],
+  "properties": {
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": { "type": "string" }
+    },
+    "difficulty": {
+      "type": "integer",
+      "minimum": 800,
+      "maximum": 3500
+    },
+    "time_limit_ms": {
+      "type": "integer",
+      "minimum": 500,
+      "maximum": 10000
+    },
+    "memory_limit_mb": {
+      "type": "integer",
+      "minimum": 64,
+      "maximum": 1024
+    },
+    "student_weakness_context": {
+      "type": ["object", "null"],
+      "properties": {
+        "weak_tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "recommended_difficulty": { "type": "integer" }
+      }
+    }
+  }
+}

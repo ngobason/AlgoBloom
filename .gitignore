@@ -32,3 +32,53 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# =====================================================================
+# AlgoBloom Monorepo Additions (Python, Node/React, Env, Docker, IDE/OS)
+# =====================================================================
+
+# Environment & Secrets
+.env.*
+!.env.example
+*.local
+
+# Python (AI Service & Test Generators)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node / React (Frontend SPA)
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+.npm/
+.yarn/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Docker Volumes & Local Runtime Data
+data/
+volumes/
+pgdata/
+redisdata/
+/data/problems/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

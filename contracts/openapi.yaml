@@ -1,0 +1,1498 @@
+openapi: 3.0.3
+info:
+  title: AlgoBloom Core Gateway API
+  version: 1.0.0
+  description: >
+    REST API contract for AlgoBloom (AI-Augmented Online Judge) following
+    Service-Oriented Architecture — Gateway Orchestration (Option A).
+    Public endpoints are served under `/api/v1/*` by the Go Core Gateway.
+    Internal AI Service endpoints use `X-Internal-API-Key` and are not exposed publicly.
+servers:
+  - url: http://localhost:4010
+    description: Stoplight Prism Mock Server (Week 12 Design Review)
+  - url: http://localhost:8000
+    description: Local Go Core Gateway (Week 13+ Implementation)
+
+tags:
+  - name: Auth
+    description: Registration, JWT login/refresh, and authenticated user profile
+  - name: Tags
+    description: Structured Codeforces-style algorithmic tag catalog
+  - name: Students
+    description: Computed student weakness profiler for intent-driven problem generation
+  - name: Problems
+    description: Problem bank browsing, ETag-cached detail, and teacher problem generation
+  - name: Submissions
+    description: Code submission, tiered subtask results, and on-demand empirical Big-O analysis
+  - name: Jobs
+    description: Asynchronous job status polling for 202 Accepted workflows
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new teacher or student account
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: student.minh@algobloom.edu.vn
+              password: StrongPassword123!
+              full_name: Nguyen Van Minh
+              role: STUDENT
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-access-token
+                refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-refresh-token
+                token_type: Bearer
+                expires_in: 3600
+                user:
+                  id: 11111111-1111-4111-8111-111111111112
+                  email: student.minh@algobloom.edu.vn
+                  full_name: Nguyen Van Minh
+                  role: STUDENT
+                  created_at: '2026-11-24T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user and issue JWT tokens
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: teacher.lan@algobloom.edu.vn
+              password: StrongPassword123!
+      responses:
+        '200':
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-teacher-token
+                refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-teacher-refresh
+                token_type: Bearer
+                expires_in: 3600
+                user:
+                  id: 11111111-1111-4111-8111-111111111111
+                  email: teacher.lan@algobloom.edu.vn
+                  full_name: Tran Thi Lan
+                  role: TEACHER
+                  created_at: '2026-11-20T07:30:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh an expired JWT access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-teacher-refresh
+      responses:
+        '200':
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-refreshed-token
+                refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-teacher-refresh-2
+                token_type: Bearer
+                expires_in: 3600
+                user:
+                  id: 11111111-1111-4111-8111-111111111111
+                  email: teacher.lan@algobloom.edu.vn
+                  full_name: Tran Thi Lan
+                  role: TEACHER
+                  created_at: '2026-11-20T07:30:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user profile
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: 11111111-1111-4111-8111-111111111111
+                email: teacher.lan@algobloom.edu.vn
+                full_name: Tran Thi Lan
+                role: TEACHER
+                created_at: '2026-11-20T07:30:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tags:
+    get:
+      tags: [Tags]
+      summary: List all structured Codeforces-style algorithmic tags
+      operationId: listTags
+      parameters:
+        - name: category
+          in: query
+          description: Optional category filter
+          schema:
+            type: string
+            enum: [ALGORITHM, DATA_STRUCTURE, TECHNIQUE]
+      responses:
+        '200':
+          description: List of available tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+              example:
+                data:
+                  - id: 22222222-2222-4222-8222-222222222201
+                    slug: dp
+                    name: Dynamic Programming
+                    category: ALGORITHM
+                  - id: 22222222-2222-4222-8222-222222222202
+                    slug: binary-search
+                    name: Binary Search
+                    category: TECHNIQUE
+                  - id: 22222222-2222-4222-8222-222222222203
+                    slug: graphs
+                    name: Graphs
+                    category: ALGORITHM
+                  - id: 22222222-2222-4222-8222-222222222204
+                    slug: segment-tree
+                    name: Segment Tree
+                    category: DATA_STRUCTURE
+                total: 4
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/students/{studentId}/weaknesses:
+    get:
+      tags: [Students]
+      summary: Get computed weakness profile for a student (TEACHER or self)
+      operationId: getStudentWeaknesses
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 11111111-1111-4111-8111-111111111112
+      responses:
+        '200':
+          description: Computed student weakness projection aggregated from submission history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentWeakness'
+              example:
+                student_id: 11111111-1111-4111-8111-111111111112
+                recommended_difficulty: 1600
+                computed_at: '2026-11-24T09:15:00Z'
+                weak_tags:
+                  - tag_slug: dp
+                    tag_name: Dynamic Programming
+                    attempt_count: 8
+                    ac_count: 2
+                    tle_count: 4
+                    wa_count: 2
+                    mastery_score: 0.25
+                  - tag_slug: binary-search
+                    tag_name: Binary Search
+                    attempt_count: 5
+                    ac_count: 2
+                    tle_count: 2
+                    wa_count: 1
+                    mastery_score: 0.4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/problems:
+    get:
+      tags: [Problems]
+      summary: List published problems with pagination, tag/difficulty filtering, and sorting
+      operationId: listProblems
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: tags
+          in: query
+          description: Comma-separated list of tag slugs (e.g. `dp,binary-search`)
+          schema:
+            type: string
+          example: dp,binary-search
+        - name: difficulty
+          in: query
+          description: Exact Codeforces-style difficulty rating (800-3500)
+          schema:
+            type: integer
+            minimum: 800
+            maximum: 3500
+          example: 1600
+        - name: sort
+          in: query
+          description: Sort field and direction
+          schema:
+            type: string
+            enum: [created_at:desc, created_at:asc, difficulty:asc, difficulty:desc]
+            default: created_at:desc
+      responses:
+        '200':
+          description: Paginated list of problems
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemListResponse'
+              example:
+                data:
+                  - id: 33333333-3333-4333-8333-333333333301
+                    slug: longest-increasing-energy-chain
+                    title: Longest Increasing Energy Chain
+                    difficulty: 1600
+                    time_limit_ms: 2000
+                    memory_limit_mb: 256
+                    target_complexity: O(N log N)
+                    status: PUBLISHED
+                    tags:
+                      - id: 22222222-2222-4222-8222-222222222201
+                        slug: dp
+                        name: Dynamic Programming
+                        category: ALGORITHM
+                      - id: 22222222-2222-4222-8222-222222222202
+                        slug: binary-search
+                        name: Binary Search
+                        category: TECHNIQUE
+                    created_at: '2026-11-24T08:30:00Z'
+                pagination:
+                  page: 1
+                  limit: 20
+                  total_items: 1
+                  total_pages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/problems/{problemId}:
+    get:
+      tags: [Problems]
+      summary: Get full problem statement and subtask tiers (supports HTTP ETag caching)
+      operationId: getProblemById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: problemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 33333333-3333-4333-8333-333333333301
+        - name: If-None-Match
+          in: header
+          required: false
+          description: Previously received ETag for conditional browser caching
+          schema:
+            type: string
+          example: W/"problem-33333333-3333-4333-8333-333333333301-v1"
+      responses:
+        '200':
+          description: Problem details (never exposes reference_solution_cpp or generator_code)
+          headers:
+            ETag:
+              description: Weak entity tag for browser cache revalidation
+              schema:
+                type: string
+              example: W/"problem-33333333-3333-4333-8333-333333333301-v1"
+            Cache-Control:
+              description: Cache revalidation directive
+              schema:
+                type: string
+              example: private, max-age=60, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                id: 33333333-3333-4333-8333-333333333301
+                slug: longest-increasing-energy-chain
+                title: Longest Increasing Energy Chain
+                statement_md: >
+                  Given an array of N reactor nodes where node i has energy level a_i,
+                  select the longest strictly increasing subsequence of reactor nodes
+                  so the chain stabilizes without overload.
+                input_format_md: >
+                  First line contains an integer N (1 <= N <= 10^5).
+                  Second line contains N integers a_1, a_2, ..., a_N (1 <= a_i <= 10^9).
+                output_format_md: Print a single integer — the maximum chain length.
+                constraints_md: >
+                  Subtask 1 (25 pts): N <= 100.
+                  Subtask 2 (25 pts): N <= 1,000.
+                  Subtask 3 (25 pts): N <= 10,000.
+                  Subtask 4 (25 pts): N <= 100,000.
+                difficulty: 1600
+                time_limit_ms: 2000
+                memory_limit_mb: 256
+                target_complexity: O(N log N)
+                status: PUBLISHED
+                tags:
+                  - id: 22222222-2222-4222-8222-222222222201
+                    slug: dp
+                    name: Dynamic Programming
+                    category: ALGORITHM
+                  - id: 22222222-2222-4222-8222-222222222202
+                    slug: binary-search
+                    name: Binary Search
+                    category: TECHNIQUE
+                sample_cases:
+                  - input: "6\n10 9 2 5 3 7"
+                    output: "3"
+                    explanation: "One longest strictly increasing subsequence is [2, 3, 7]."
+                subtask_tiers:
+                  - tier: 1
+                    max_n: 100
+                    points: 25
+                    time_limit_ms: 2000
+                  - tier: 2
+                    max_n: 1000
+                    points: 25
+                    time_limit_ms: 2000
+                  - tier: 3
+                    max_n: 10000
+                    points: 25
+                    time_limit_ms: 2000
+                  - tier: 4
+                    max_n: 100000
+                    points: 25
+                    time_limit_ms: 2000
+                created_by: 11111111-1111-4111-8111-111111111111
+                created_at: '2026-11-24T08:30:00Z'
+                updated_at: '2026-11-24T08:31:12Z'
+        '304':
+          description: Not Modified (client ETag matches current problem version)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/problems/generate:
+    post:
+      tags: [Problems]
+      summary: Trigger intent-driven AI problem generation and sandbox self-verification (TEACHER only)
+      operationId: generateProblem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateProblemRequest'
+            example:
+              tags: [dp, binary-search]
+              difficulty: 1600
+              target_student_id: 11111111-1111-4111-8111-111111111112
+              time_limit_ms: 2000
+              memory_limit_mb: 256
+      responses:
+        '202':
+          description: Problem generation and verification job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+              example:
+                job_id: 55555555-5555-4555-8555-555555555501
+                type: PROBLEM_GENERATE
+                status: PENDING
+                poll_url: /api/v1/jobs/55555555-5555-4555-8555-555555555501
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/submissions:
+    post:
+      tags: [Submissions]
+      summary: Submit source code for asynchronous tiered subtask judging
+      operationId: createSubmission
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubmissionRequest'
+            example:
+              problem_id: 33333333-3333-4333-8333-333333333301
+              language: cpp20
+              source_code: |
+                #include <bits/stdc++.h>
+                using namespace std;
+                int main() {
+                    ios::sync_with_stdio(false);
+                    cin.tie(nullptr);
+                    int n;
+                    cin >> n;
+                    vector<int> a(n), dp(n, 1);
+                    for (int i = 0; i < n; ++i) cin >> a[i];
+                    int ans = 0;
+                    for (int i = 0; i < n; ++i) {
+                        for (int j = 0; j < i; ++j) {
+                            if (a[j] < a[i]) dp[i] = max(dp[i], dp[j] + 1);
+                        }
+                        ans = max(ans, dp[i]);
+                    }
+                    cout << ans << "\n";
+                    return 0;
+                }
+      responses:
+        '202':
+          description: Submission accepted and queued on Redis Streams (`judge_jobs`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedSubmissionResponse'
+              example:
+                job_id: 55555555-5555-4555-8555-555555555502
+                submission_id: 44444444-4444-4444-8444-444444444401
+                type: SUBMISSION_JUDGE
+                status: PENDING
+                poll_url: /api/v1/jobs/55555555-5555-4555-8555-555555555502
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Submissions]
+      summary: List submissions with pagination and filtering by problem_id and status
+      operationId: listSubmissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: problem_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubmissionStatus'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at:desc, created_at:asc]
+            default: created_at:desc
+      responses:
+        '200':
+          description: Paginated list of submissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionListResponse'
+              example:
+                data:
+                  - id: 44444444-4444-4444-8444-444444444401
+                    problem_id: 33333333-3333-4333-8333-333333333301
+                    student_id: 11111111-1111-4111-8111-111111111112
+                    language: cpp20
+                    status: TLE
+                    score: 50
+                    max_time_ms: 2001
+                    max_memory_kb: 4096
+                    created_at: '2026-11-24T09:00:00Z'
+                    judged_at: '2026-11-24T09:00:07Z'
+                pagination:
+                  page: 1
+                  limit: 20
+                  total_items: 1
+                  total_pages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/submissions/{submissionId}:
+    get:
+      tags: [Submissions]
+      summary: Get detailed submission verdict and tiered subtask_timings (supports HTTP ETag)
+      operationId: getSubmissionById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 44444444-4444-4444-8444-444444444401
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          example: W/"submission-44444444-4444-4444-8444-444444444401-v2"
+      responses:
+        '200':
+          description: Detailed submission result with empirical subtask timings
+          headers:
+            ETag:
+              description: Weak entity tag for browser cache revalidation
+              schema:
+                type: string
+              example: W/"submission-44444444-4444-4444-8444-444444444401-v2"
+            Cache-Control:
+              schema:
+                type: string
+              example: private, max-age=30, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionDetail'
+              example:
+                id: 44444444-4444-4444-8444-444444444401
+                problem_id: 33333333-3333-4333-8333-333333333301
+                student_id: 11111111-1111-4111-8111-111111111112
+                language: cpp20
+                source_code: |
+                  #include <bits/stdc++.h>
+                  using namespace std;
+                  int main() {
+                      int n; cin >> n;
+                      vector<int> a(n), dp(n, 1);
+                      for (int i = 0; i < n; ++i) cin >> a[i];
+                      int ans = 0;
+                      for (int i = 0; i < n; ++i) {
+                          for (int j = 0; j < i; ++j)
+                              if (a[j] < a[i]) dp[i] = max(dp[i], dp[j] + 1);
+                          ans = max(ans, dp[i]);
+                      }
+                      cout << ans << "\n";
+                  }
+                status: TLE
+                score: 50
+                max_time_ms: 2001
+                max_memory_kb: 4096
+                subtask_timings:
+                  - tier: 1
+                    max_n: 100
+                    status: AC
+                    time_ms: 4
+                    memory_kb: 3200
+                    passed_cases: 5
+                    total_cases: 5
+                  - tier: 2
+                    max_n: 1000
+                    status: AC
+                    time_ms: 48
+                    memory_kb: 3456
+                    passed_cases: 5
+                    total_cases: 5
+                  - tier: 3
+                    max_n: 10000
+                    status: TLE
+                    time_ms: 2001
+                    memory_kb: 4096
+                    passed_cases: 0
+                    total_cases: 5
+                  - tier: 4
+                    max_n: 100000
+                    status: TLE
+                    time_ms: 2001
+                    memory_kb: 4096
+                    passed_cases: 0
+                    total_cases: 5
+                compiler_output: ''
+                created_at: '2026-11-24T09:00:00Z'
+                judged_at: '2026-11-24T09:00:07Z'
+        '304':
+          description: Not Modified (client ETag matches current submission version)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/submissions/{submissionId}/analyze:
+    post:
+      tags: [Submissions]
+      summary: On-demand empirical Big-O diagnosis and Socratic hint (hash-cached in PostgreSQL)
+      operationId: analyzeSubmissionComplexity
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 44444444-4444-4444-8444-444444444401
+      responses:
+        '200':
+          description: Empirical Big-O analysis and Socratic hint (never spoils full solution code)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BigOAnalysisResponse'
+              example:
+                submission_id: 44444444-4444-4444-8444-444444444401
+                detected_complexity: O(N^2)
+                target_complexity: O(N log N)
+                bottleneck_summary: >
+                  Runtime jumps ~12x from N=100 (4ms) to N=1,000 (48ms) and hits the 2000ms TLE cliff at N=10,000,
+                  matching the nested `for (j = 0; j < i; ++j)` DP transition performing ~N^2 / 2 comparisons.
+                socratic_hint: >
+                  Instead of scanning every previous index j to find the best dp[j], think about tracking the
+                  smallest possible tail value for each subsequence length L. Because that array of minimum tails
+                  stays sorted, what search operation lets you update it in O(log N) per element?
+                guiding_questions:
+                  - Why does maintaining `tails[len]` as the minimum ending value of an increasing subsequence of length `len` preserve monotonicity?
+                  - Which standard library binary search (`std::lower_bound` vs `std::upper_bound`) enforces strictly increasing order?
+                cached: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/jobs/{jobId}:
+    get:
+      tags: [Jobs]
+      summary: Poll status of an asynchronous generation or judging job
+      operationId: getJobStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 55555555-5555-4555-8555-555555555501
+      responses:
+        '200':
+          description: Current job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+              example:
+                id: 55555555-5555-4555-8555-555555555501
+                type: PROBLEM_GENERATE
+                status: COMPLETED
+                resource_type: PROBLEM
+                resource_id: 33333333-3333-4333-8333-333333333301
+                result:
+                  verified: true
+                  tiers_passed: 4
+                error_code: null
+                error_message: null
+                created_at: '2026-11-24T08:30:00Z'
+                updated_at: '2026-11-24T08:31:12Z'
+                completed_at: '2026-11-24T08:31:12Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        JWT access token issued by `/api/v1/auth/login`.
+        Payload carries `sub` (user UUID) and `role` (`TEACHER` or `STUDENT`) for RBAC enforcement.
+    InternalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-API-Key
+      description: >
+        Shared secret header protecting internal Gateway -> AI Service calls
+        (`/internal/ai/generate-problem`, `/internal/ai/analyze-complexity`).
+        Never accepted on public SPA routes.
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: 1-based page number
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      description: Items per page (1-100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Malformed request syntax or invalid query parameter
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: BAD_REQUEST
+              message: Malformed JSON payload or invalid query parameter.
+              details: []
+              request_id: req-9a8b7c6d-1001
+    Unauthorized:
+      description: Missing, invalid, or expired JWT bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Authentication required. Provide a valid Bearer JWT token.
+              details: []
+              request_id: req-9a8b7c6d-1002
+    Forbidden:
+      description: Authenticated user lacks required RBAC role or resource ownership
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: FORBIDDEN
+              message: Role TEACHER is required to generate problems.
+              details: []
+              request_id: req-9a8b7c6d-1003
+    NotFound:
+      description: Requested resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: NOT_FOUND
+              message: Requested resource was not found.
+              details: []
+              request_id: req-9a8b7c6d-1004
+    UnprocessableEntity:
+      description: Request failed semantic validation rules
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: One or more fields failed validation.
+              details:
+                - field: difficulty
+                  reason: must be between 800 and 3500
+              request_id: req-9a8b7c6d-1005
+    TooManyRequests:
+      description: Rate limit exceeded (client throttle or upstream Gemini 429 quota)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Upstream AI quota or request rate limit exceeded. Retry after backoff.
+              details:
+                - field: retry_after_seconds
+                  reason: '15'
+              request_id: req-9a8b7c6d-1006
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: An unexpected internal error occurred.
+              details: []
+              request_id: req-9a8b7c6d-1007
+
+  schemas:
+    ErrorDetail:
+      type: object
+      required: [field, reason]
+      properties:
+        field:
+          type: string
+        reason:
+          type: string
+
+    ErrorBody:
+      type: object
+      required: [code, message, details, request_id]
+      properties:
+        code:
+          type: string
+          enum:
+            - BAD_REQUEST
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - VALIDATION_ERROR
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        request_id:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+
+    PaginationMeta:
+      type: object
+      required: [page, limit, total_items, total_pages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total_items:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+
+    UserRole:
+      type: string
+      enum: [TEACHER, STUDENT]
+
+    User:
+      type: object
+      required: [id, email, full_name, role, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [email, password, full_name, role]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+        user:
+          $ref: '#/components/schemas/User'
+
+    Tag:
+      type: object
+      required: [id, slug, name, category]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [ALGORITHM, DATA_STRUCTURE, TECHNIQUE]
+
+    TagListResponse:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        total:
+          type: integer
+          minimum: 0
+
+    WeakTagStat:
+      type: object
+      required: [tag_slug, tag_name, attempt_count, ac_count, tle_count, wa_count, mastery_score]
+      properties:
+        tag_slug:
+          type: string
+        tag_name:
+          type: string
+        attempt_count:
+          type: integer
+          minimum: 0
+        ac_count:
+          type: integer
+          minimum: 0
+        tle_count:
+          type: integer
+          minimum: 0
+        wa_count:
+          type: integer
+          minimum: 0
+        mastery_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    StudentWeakness:
+      type: object
+      required: [student_id, weak_tags, recommended_difficulty, computed_at]
+      properties:
+        student_id:
+          type: string
+          format: uuid
+        weak_tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeakTagStat'
+        recommended_difficulty:
+          type: integer
+          minimum: 800
+          maximum: 3500
+        computed_at:
+          type: string
+          format: date-time
+
+    ProblemStatus:
+      type: string
+      enum: [DRAFT, VERIFYING, PUBLISHED, FAILED]
+
+    SampleCase:
+      type: object
+      required: [input, output]
+      properties:
+        input:
+          type: string
+        output:
+          type: string
+        explanation:
+          type: string
+
+    SubtaskTier:
+      type: object
+      required: [tier, max_n, points, time_limit_ms]
+      properties:
+        tier:
+          type: integer
+          minimum: 1
+          maximum: 4
+        max_n:
+          type: integer
+          enum: [100, 1000, 10000, 100000]
+        points:
+          type: integer
+          minimum: 1
+          maximum: 100
+        time_limit_ms:
+          type: integer
+          minimum: 500
+
+    ProblemSummary:
+      type: object
+      required:
+        - id
+        - slug
+        - title
+        - difficulty
+        - time_limit_ms
+        - memory_limit_mb
+        - target_complexity
+        - status
+        - tags
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        difficulty:
+          type: integer
+          minimum: 800
+          maximum: 3500
+        time_limit_ms:
+          type: integer
+        memory_limit_mb:
+          type: integer
+        target_complexity:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProblemStatus'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        created_at:
+          type: string
+          format: date-time
+
+    ProblemListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemSummary'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ProblemDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProblemSummary'
+        - type: object
+          required:
+            - statement_md
+            - input_format_md
+            - output_format_md
+            - constraints_md
+            - sample_cases
+            - subtask_tiers
+            - created_by
+            - updated_at
+          properties:
+            statement_md:
+              type: string
+            input_format_md:
+              type: string
+            output_format_md:
+              type: string
+            constraints_md:
+              type: string
+            sample_cases:
+              type: array
+              items:
+                $ref: '#/components/schemas/SampleCase'
+            subtask_tiers:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubtaskTier'
+            created_by:
+              type: string
+              format: uuid
+            updated_at:
+              type: string
+              format: date-time
+
+    GenerateProblemRequest:
+      type: object
+      required: [tags, difficulty]
+      properties:
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            type: string
+          description: Structured Codeforces-style tag slugs
+        difficulty:
+          type: integer
+          minimum: 800
+          maximum: 3500
+        target_student_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional student UUID to incorporate weakness profile context
+        time_limit_ms:
+          type: integer
+          minimum: 500
+          maximum: 10000
+          default: 2000
+        memory_limit_mb:
+          type: integer
+          minimum: 64
+          maximum: 1024
+          default: 256
+
+    Language:
+      type: string
+      enum: [cpp17, cpp20, python3]
+
+    SubmissionStatus:
+      type: string
+      enum: [PENDING, RUNNING, AC, WA, TLE, MLE, RE, CE, IE]
+
+    CreateSubmissionRequest:
+      type: object
+      required: [problem_id, language, source_code]
+      properties:
+        problem_id:
+          type: string
+          format: uuid
+        language:
+          $ref: '#/components/schemas/Language'
+        source_code:
+          type: string
+          minLength: 1
+          maxLength: 65536
+
+    SubtaskTiming:
+      type: object
+      required: [tier, max_n, status, time_ms, memory_kb, passed_cases, total_cases]
+      properties:
+        tier:
+          type: integer
+          minimum: 1
+          maximum: 4
+        max_n:
+          type: integer
+        status:
+          $ref: '#/components/schemas/SubmissionStatus'
+        time_ms:
+          type: integer
+          minimum: 0
+        memory_kb:
+          type: integer
+          minimum: 0
+        passed_cases:
+          type: integer
+          minimum: 0
+        total_cases:
+          type: integer
+          minimum: 1
+
+    SubmissionSummary:
+      type: object
+      required: [id, problem_id, student_id, language, status, score, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        problem_id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        language:
+          $ref: '#/components/schemas/Language'
+        status:
+          $ref: '#/components/schemas/SubmissionStatus'
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        max_time_ms:
+          type: integer
+          nullable: true
+        max_memory_kb:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        judged_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    SubmissionListResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionSummary'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    SubmissionDetail:
+      allOf:
+        - $ref: '#/components/schemas/SubmissionSummary'
+        - type: object
+          required: [source_code, subtask_timings]
+          properties:
+            source_code:
+              type: string
+            subtask_timings:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubtaskTiming'
+            compiler_output:
+              type: string
+              nullable: true
+
+    BigOAnalysisResponse:
+      type: object
+      required:
+        - submission_id
+        - detected_complexity
+        - target_complexity
+        - bottleneck_summary
+        - socratic_hint
+        - guiding_questions
+        - cached
+      properties:
+        submission_id:
+          type: string
+          format: uuid
+        detected_complexity:
+          type: string
+        target_complexity:
+          type: string
+        bottleneck_summary:
+          type: string
+        socratic_hint:
+          type: string
+        guiding_questions:
+          type: array
+          items:
+            type: string
+        cached:
+          type: boolean
+          description: True when served from PostgreSQL ai_cache (problem_id, source_code_sha256)
+
+    JobType:
+      type: string
+      enum: [PROBLEM_GENERATE, SUBMISSION_JUDGE]
+
+    JobStatus:
+      type: string
+      enum: [PENDING, RUNNING, COMPLETED, FAILED]
+
+    AcceptedJobResponse:
+      type: object
+      required: [job_id, type, status, poll_url]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/JobType'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        poll_url:
+          type: string
+
+    AcceptedSubmissionResponse:
+      allOf:
+        - $ref: '#/components/schemas/AcceptedJobResponse'
+        - type: object
+          required: [submission_id]
+          properties:
+            submission_id:
+              type: string
+              format: uuid
+
+    Job:
+      type: object
+      required: [id, type, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/JobType'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        resource_type:
+          type: string
+          enum: [PROBLEM, SUBMISSION]
+          nullable: true
+        resource_id:
+          type: string
+          format: uuid
+          nullable: true
+        result:
+          type: object
+          additionalProperties: true
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true

@@ -1,0 +1,407 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-0012-4012-8012-algobloomw12",
+    "name": "AlgoBloom API Contract Tests (W12 Prism -> W13 Gateway)",
+    "description": "Starter contract test collection covering the focal AlgoBloom flow (Generate Verified Problem -> Fetch Problem -> Submit O(N^2) -> Poll & Inspect TLE Subtask Timings -> On-Demand Big-O Hint) plus 401/403/422 negative checks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:4010",
+      "type": "string"
+    },
+    {
+      "key": "teacher_token",
+      "value": "mock-teacher-jwt",
+      "type": "string"
+    },
+    {
+      "key": "student_token",
+      "value": "mock-student-jwt",
+      "type": "string"
+    },
+    {
+      "key": "problem_id",
+      "value": "33333333-3333-4333-8333-333333333301",
+      "type": "string"
+    },
+    {
+      "key": "submission_id",
+      "value": "44444444-4444-4444-8444-444444444401",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "55555555-5555-4555-8555-555555555501",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth & Catalog",
+      "item": [
+        {
+          "name": "POST /api/v1/auth/login (Teacher)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns access_token and user.role', () => {",
+                  "  pm.expect(body.access_token).to.be.a('string');",
+                  "  pm.expect(body.user.role).to.be.oneOf(['TEACHER', 'STUDENT']);",
+                  "});",
+                  "if (body.access_token) pm.collectionVariables.set('teacher_token', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"teacher.lan@algobloom.edu.vn\",\n  \"password\": \"StrongPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/tags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Tags array returned', () => {",
+                  "  pm.expect(body.data).to.be.an('array').that.is.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/tags",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tags"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Focal Flow (Happy Path)",
+      "item": [
+        {
+          "name": "POST /api/v1/problems/generate (202 Accepted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 202 Accepted', () => pm.response.to.have.status(202));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns job_id and PENDING status', () => {",
+                  "  pm.expect(body.job_id).to.be.a('string');",
+                  "  pm.expect(body.type).to.eql('PROBLEM_GENERATE');",
+                  "});",
+                  "if (body.job_id) pm.collectionVariables.set('job_id', body.job_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{teacher_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": [\"dp\", \"binary-search\"],\n  \"difficulty\": 1600,\n  \"time_limit_ms\": 2000,\n  \"memory_limit_mb\": 256\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/problems/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "problems", "generate"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/jobs/{jobId}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Valid job status', () => {",
+                  "  pm.expect(body.status).to.be.oneOf(['PENDING', 'RUNNING', 'COMPLETED', 'FAILED']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{teacher_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "jobs", "{{job_id}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/problems/{problemId} (ETag Check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Includes ETag header', () => pm.response.to.have.header('ETag'));",
+                  "const body = pm.response.json();",
+                  "pm.test('Does not leak internal reference_solution_cpp or generator_code', () => {",
+                  "  pm.expect(body).to.not.have.property('reference_solution_cpp');",
+                  "  pm.expect(body).to.not.have.property('generator_code');",
+                  "  pm.expect(body.subtask_tiers).to.be.an('array').with.lengthOf(4);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/problems/{{problem_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "problems", "{{problem_id}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/v1/submissions (O(N^2) Solution -> 202)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 202 Accepted', () => pm.response.to.have.status(202));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns job_id and submission_id', () => {",
+                  "  pm.expect(body.job_id).to.be.a('string');",
+                  "  pm.expect(body.submission_id).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{student_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problem_id\": \"{{problem_id}}\",\n  \"language\": \"cpp20\",\n  \"source_code\": \"#include <bits/stdc++.h>\\nusing namespace std;\\nint main(){int n;cin>>n;vector<int> a(n),dp(n,1);for(int i=0;i<n;i++)cin>>a[i];int ans=0;for(int i=0;i<n;i++){for(int j=0;j<i;j++)if(a[j]<a[i])dp[i]=max(dp[i],dp[j]+1);ans=max(ans,dp[i]);}cout<<ans<<'\\\\n';}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/submissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "submissions"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/submissions/{submissionId} (Subtask Timings + ETag)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Includes ETag header', () => pm.response.to.have.header('ETag'));",
+                  "const body = pm.response.json();",
+                  "pm.test('Includes tiered subtask_timings', () => {",
+                  "  pm.expect(body.subtask_timings).to.be.an('array').that.is.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/submissions/{{submission_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "submissions", "{{submission_id}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/v1/submissions/{submissionId}/analyze (On-Demand Big-O Hint)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns Big-O diagnosis, Socratic hint, and cached flag', () => {",
+                  "  pm.expect(body.detected_complexity).to.be.a('string');",
+                  "  pm.expect(body.target_complexity).to.be.a('string');",
+                  "  pm.expect(body.socratic_hint).to.be.a('string');",
+                  "  pm.expect(body.cached).to.be.a('boolean');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/submissions/{{submission_id}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "submissions", "{{submission_id}}", "analyze"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Negative Contract Tests (401 / 403 / 422)",
+      "item": [
+        {
+          "name": "401 Unauthorized — Missing Bearer Token on /problems/generate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', () => pm.response.to.have.status(401));",
+                  "const body = pm.response.json();",
+                  "pm.test('Unified error envelope present', () => {",
+                  "  pm.expect(body.error.code).to.be.a('string');",
+                  "  pm.expect(body.error.message).to.be.a('string');",
+                  "  pm.expect(body.error.request_id).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": [\"dp\"],\n  \"difficulty\": 1600\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/problems/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "problems", "generate"]
+            }
+          }
+        },
+        {
+          "name": "403 Forbidden — Student Attempts /problems/generate (Prism Prefer / Gateway RBAC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 403', () => pm.response.to.have.status(403));",
+                  "const body = pm.response.json();",
+                  "pm.test('Unified error envelope has FORBIDDEN code', () => {",
+                  "  pm.expect(body.error.code).to.eql('FORBIDDEN');",
+                  "  pm.expect(body.error.request_id).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{student_token}}" },
+              { "key": "Prefer", "value": "code=403" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": [\"dp\"],\n  \"difficulty\": 1600\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/problems/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "problems", "generate"]
+            }
+          }
+        },
+        {
+          "name": "422 Unprocessable Entity — Difficulty Out of Range (9999)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 422', () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test('Unified error envelope present', () => {",
+                  "  pm.expect(body.error.code).to.be.a('string');",
+                  "  pm.expect(body.error.message).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{teacher_token}}" },
+              { "key": "Prefer", "value": "code=422" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": [\"dp\"],\n  \"difficulty\": 9999\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/problems/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "problems", "generate"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

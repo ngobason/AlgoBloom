@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalyzeComplexityInternalRequest",
+  "type": "object",
+  "required": [
+    "problem_title",
+    "target_complexity",
+    "language",
+    "source_code",
+    "verdict",
+    "subtask_timings"
+  ],
+  "properties": {
+    "problem_title": { "type": "string" },
+    "target_complexity": { "type": "string" },
+    "language": { "type": "string", "enum": ["cpp17", "cpp20", "python3"] },
+    "source_code": { "type": "string", "minLength": 1 },
+    "verdict": { "type": "string", "enum": ["AC", "WA", "TLE", "MLE", "RE"] },
+    "subtask_timings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["tier", "max_n", "status", "time_ms", "memory_kb"],
+        "properties": {
+          "tier": { "type": "integer" },
+          "max_n": { "type": "integer" },
+          "status": { "type": "string" },
+          "time_ms": { "type": "integer" },
+          "memory_kb": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

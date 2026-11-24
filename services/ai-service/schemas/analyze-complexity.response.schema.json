@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalyzeComplexityInternalResponse",
+  "type": "object",
+  "required": [
+    "detected_complexity",
+    "target_complexity",
+    "bottleneck_summary",
+    "socratic_hint",
+    "guiding_questions",
+    "model_version"
+  ],
+  "properties": {
+    "detected_complexity": { "type": "string" },
+    "target_complexity": { "type": "string" },
+    "bottleneck_summary": { "type": "string", "minLength": 10 },
+    "socratic_hint": { "type": "string", "minLength": 10 },
+    "guiding_questions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": { "type": "string" }
+    },
+    "model_version": { "type": "string" }
+  }
+}
